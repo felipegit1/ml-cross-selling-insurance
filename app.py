@@ -4,16 +4,6 @@ import numpy as np
 import joblib
 
 # =========================================
-# CARGAR MODELO
-# =========================================
-
-@st.cache_resource
-def cargar_modelo():
-    return joblib.load("modelo_xgboost.pkl")
-
-modelo = cargar_modelo()
-
-# =========================================
 # CONFIGURACIÓN APP
 # =========================================
 
@@ -27,6 +17,17 @@ st.title("Modelo de Propensión a Venta Cruzada")
 st.markdown("""
 Aplicación basada en Machine Learning para estimar la probabilidad de adquisición de un producto SOAT por clientes del ramo Salud.
 """)
+
+# =========================================
+# CARGAR MODELO
+# =========================================
+
+@st.cache_resource
+def cargar_modelo():
+    return joblib.load("modelo_xgboost.pkl")
+
+modelo = cargar_modelo()
+
 
 # =========================================
 # INPUTS USUARIO
