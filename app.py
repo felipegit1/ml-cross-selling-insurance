@@ -7,10 +7,14 @@ import joblib
 # CARGAR MODELO
 # =========================================
 
-modelo = joblib.load("modelo_xgboost.pkl")
+@st.cache_resource
+def cargar_modelo():
+    return joblib.load("modelo_xgboost.pkl")
+
+modelo = cargar_modelo()
 
 # =========================================
-# CONFIGURACIÓN
+# CONFIGURACIÓN APP
 # =========================================
 
 st.set_page_config(
@@ -21,19 +25,14 @@ st.set_page_config(
 st.title("Modelo de Propensión a Venta Cruzada")
 
 st.markdown("""
-Esta aplicación estima la probabilidad de que un cliente adquiera un producto SOAT.
+Aplicación basada en Machine Learning para estimar la probabilidad de adquisición de un producto SOAT por clientes del ramo Salud.
 """)
 
 # =========================================
-# INPUTS
+# INPUTS USUARIO
 # =========================================
 
-edad = st.slider(
-    "Edad",
-    18,
-    100,
-    35
-)
+st.subheader("Información del Cliente")
 
 sexo = st.selectbox(
     "Sexo",
@@ -52,6 +51,18 @@ estado_civil = st.selectbox(
     ]
 )
 
+plan_pr = st.selectbox(
+    "Plan",
+    [
+        "original plus",
+        "ALTERNO AMPARADO",
+        "Original Amparado",
+        "Alterno plus",
+        "PLAN AMBULATORIO",
+        "OTRAS"
+    ]
+)
+
 ciudad = st.selectbox(
     "Ciudad",
     [
@@ -59,23 +70,16 @@ ciudad = st.selectbox(
         "MEDELLIN",
         "BUCARAMANGA",
         "CALI",
-        "BARRANQUILLA",
         "CARTAGENA",
         "OTRAS"
     ]
 )
 
-departamento = st.selectbox(
-    "Departamento",
-    [
-        "BOGOTA",
-        "ANTIOQUIA",
-        "SANTANDER",
-        "ATLANTICO",
-        "CUNDINAMARCA",
-        "BOLIVAR",
-        "OTROS"
-    ]
+edad = st.slider(
+    "Edad",
+    18,
+    100,
+    35
 )
 
 cantidad_siniestros = st.number_input(
@@ -88,7 +92,7 @@ cantidad_siniestros = st.number_input(
 antiguedad_poliza = st.number_input(
     "Antigüedad Póliza (días)",
     min_value=0,
-    max_value=15000,
+    max_value=20000,
     value=365
 )
 
@@ -99,15 +103,31 @@ dias_restantes = st.number_input(
     value=180
 )
 
-total_primas = st.number_input(
-    "Total Primas",
-    min_value=0.0,
-    value=1000000.0
-)
-
 cliente_premium = st.selectbox(
     "Cliente Premium",
-    [0,1]
+    [0, 1]
+)
+
+prima_negativa = st.selectbox(
+    "¿Presenta Prima Negativa?",
+    [0, 1]
+)
+
+
+# =========================================
+# FEATURE ENGINEERING
+# =========================================
+
+cliente_siniestros = (
+    1 if cantidad_siniestros > 0 else 0
+)
+
+log_siniestros = np.log1p(
+    cantidad_siniestros
+)
+
+log_antiguedad = np.log1p(
+    antiguedad_poliza
 )
 
 # =========================================
@@ -117,73 +137,65 @@ cliente_premium = st.selectbox(
 if st.button("Predecir Propensión"):
 
     data = pd.DataFrame({
-        
-    	"EDAD": [edad],
 
-    	"SEXO_GENERO": [sexo],
+        "SEXO_GENERO": [sexo],
 
-    	"ESTADO_CIVIL": [estado_civil],
+        "ESTADO_CIVIL": [estado_civil],
 
-    	"CIUDAD": [ciudad],
+        "PLAN_PR": [plan_pr],
 
-    	"DEPARTAMENTO": [departamento],
+        "CANTIDAD_SINIESTROS": [cantidad_siniestros],
 
-    	"CANTIDAD_SINIESTROS": [cantidad_siniestros],
+        "CIUDAD": [ciudad],
 
-    	"ANTIGUEDAD_POLIZA": [antiguedad_poliza],
+        "EDAD": [edad],
 
-    	"DIAS_RESTANTES_VIGENCIA": [dias_restantes],
+        "ANTIGUEDAD_POLIZA": [antiguedad_poliza],
 
-    	"TOTAL_PRIMAS": [total_primas],
+        "DIAS_RESTANTES_VIGENCIA": [dias_restantes],
 
-    	"CLIENTE_PREMIUM": [cliente_premium],
+        "CLIENTE_SINIESTROS": [cliente_siniestros],
 
-    # =====================================
-    # VARIABLES FALTANTES
-    # =====================================
+        "LOG_SINIESTROS": [log_siniestros],
 
-    	"TIPO_PERSONA": ["Persona"],
+        "LOG_ANTIGUEDAD": [log_antiguedad],
 
-    	"TIPO_DE_DOCUMENTO": ["CC"],
+        "CLIENTE_PREMIUM": [cliente_premium],
 
-    	"PRODUCTO_x": ["SALUD"],
-
-    	"CLIENTE_SINIESTROS": [
-        1 if cantidad_siniestros > 0 else 0
-    	],
-
-    	"LOG_TOTAL_PRIMAS": [
-        np.log1p(total_primas)
-    	],
-
-    	"LOG_SINIESTROS": [
-        np.log1p(cantidad_siniestros)
-    	],
-
-    	"LOG_ANTIGUEDAD": [
-        np.log1p(antiguedad_poliza)
-    	]
+        "PRIMA_NEGATIVA": [prima_negativa]
     })
+
+    # =====================================
+    # PREDICCIÓN
+    # =====================================
 
     probabilidad = modelo.predict_proba(data)[0][1]
 
-    porcentaje = round(probabilidad * 100, 2)
+    porcentaje = round(
+        probabilidad * 100,
+        2
+    )
 
-    st.subheader(f"Probabilidad de Compra: {porcentaje}%")
+    st.subheader(
+        f"Probabilidad de Compra: {porcentaje}%"
+    )
+
+    st.progress(int(porcentaje))
 
     # =====================================
-    # SEMÁFORO
+    # RESULTADO NEGOCIO
     # =====================================
 
-    if porcentaje >= 70:
+    if porcentaje >= 60:
 
         st.success(
             "Alta propensión a compra"
         )
 
         st.markdown("""
-        Recomendación:
-        Priorizar cliente en campañas premium de cross-selling.
+        ### Recomendación Comercial
+        
+        Cliente priorizable para campañas premium de cross-selling y estrategias de retención.
         """)
 
     elif porcentaje >= 40:
@@ -193,8 +205,9 @@ if st.button("Predecir Propensión"):
         )
 
         st.markdown("""
-        Recomendación:
-        Cliente elegible para campañas segmentadas.
+        ### Recomendación Comercial
+        
+        Cliente apto para campañas segmentadas y ofertas dirigidas.
         """)
 
     else:
@@ -204,6 +217,17 @@ if st.button("Predecir Propensión"):
         )
 
         st.markdown("""
-        Recomendación:
-        No priorizar en campañas comerciales.
+        ### Recomendación Comercial
+        
+        Cliente no priorizable actualmente para campañas comerciales.
         """)
+
+# =========================================
+# FOOTER
+# =========================================
+
+st.markdown("---")
+
+st.caption("""
+Proyecto Final Análisis de Machine Learning - Modelo de Propensión a Venta Cruzada
+""")
